@@ -2,11 +2,13 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener, ProxyHandler
 
 from app import Handler, Store, ThreadingHTTPServer, market_url
+from market_search import BrowserSearch
 
 
 class StoreTests(unittest.TestCase):
@@ -86,6 +88,7 @@ class HttpTests(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         cls.server.store = Store(Path(cls.tmp.name) / 'http.sqlite3')
+        cls.server.search = BrowserSearch(Path(cls.tmp.name) / 'profile')
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.base = f'http://127.0.0.1:{cls.server.server_port}'
@@ -134,6 +137,18 @@ class HttpTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as e:
             self.request('/../../app.py')
         self.assertEqual(e.exception.code, 404)
+
+    def test_search_missing_dependency_is_not_zero_results(self):
+        with patch.object(BrowserSearch, 'installed', return_value=False):
+            with self.assertRaises(HTTPError) as error:
+                self.request('/api/search', {'query': 'Kiwi Ears Orchestra Lite'})
+            self.assertEqual(error.exception.code, 503)
+            self.assertIn('setup-search-windows', json.load(error.exception)['error'])
+
+    def test_search_invalid_query(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request('/api/search', {'query': ''})
+        self.assertEqual(error.exception.code, 400)
 
 
 if __name__ == '__main__':

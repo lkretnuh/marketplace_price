@@ -8,6 +8,7 @@ const date = value => new Date(value).toLocaleDateString('ru-RU',{day:'numeric',
 const stamp = value => new Date(value).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'});
 let state = {products:[]}, selected = null, filter = '', period = 30, city = 'Санкт-Петербург', market = '', sort = 'total';
 let submitAction = null;
+let searchJob = null, searchTimer = null, searchStarting = false, searchProductId = null;
 async function api(path, body, method='POST') {
   const response = await fetch(path, {method,headers:{'Content-Type':'application/json'},...(body === undefined ? {} : {body:JSON.stringify(body)})});
   const data = await response.json();
@@ -56,7 +57,7 @@ function renderDetail() {
   offers.sort((a,b)=>{const x=latest(a),y=latest(b);return sort==='days'?x.days_max-y.days_max:(x.price+x.shipping)-(y.price+y.shipping);});
   const best=offers.length?Math.min(...offers.map(o=>latest(o).price+latest(o).shipping)):null;
   $('#detail').innerHTML=`<div class="detail-top"><div>${product.demo?'<span class="demo-tag">ВЫМЫШЛЕННЫЕ ДАННЫЕ · ТОЛЬКО ДЛЯ ЗНАКОМСТВА</span>':''}<h2>${esc(product.name)}</h2><p>${product.offers.length} карточек · цены в рублях · без скрытого объединения продавцов</p></div><button class="icon-button" id="delete-product" aria-label="Удалить товар" title="Удалить товар и его историю">×</button></div>
-    <div class="discovery"><div><strong>Найти предложения</strong><small>Поиск откроется на сайте площадки. Единой выдачи в приложении пока нет.</small></div><div class="search-market-links">${searchLinks(product.name)}</div></div>
+    <div class="discovery"><div><strong>Найти предложения</strong><small>Запустите поиск через браузер, чтобы собрать карточки в приложении. Ниже — прямые ссылки на поиск площадок.</small></div>${!product.demo?'<button class="primary" id="search-this-product">Найти карточки этого товара</button>':''}<div class="search-market-links">${searchLinks(product.name)}</div></div>
     <section class="chart-card"><div class="card-heading"><h3>Динамика итоговой стоимости</h3><div class="segments">${[7,30,0].map(n=>`<button data-period="${n}" class="${n===period?'active':''}">${n?n+' дн.':'Всё'}</button>`).join('')}</div></div><p class="chart-caption">Цена + доставка · ${esc(city)} · линии по каждой карточке</p><div id="chart"></div></section>
     <section class="offers-card"><div class="card-heading"><h3>Все предложения <span class="muted">· ${product.offers.length}</span></h3>${!product.demo?'<button class="text-button" id="add-offer">＋ Карточка по ссылке</button>':''}</div><div class="filter-bar"><label>Город <select id="city">${cities.map(c=>`<option ${c===city?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label>Площадка <select id="market"><option value="">Все</option>${Object.entries(names).map(([k,v])=>`<option value="${k}" ${market===k?'selected':''}>${v}</option>`).join('')}</select></label><label>Сначала <select id="sort"><option value="total" ${sort==='total'?'selected':''}>Дешевле с доставкой</option><option value="days" ${sort==='days'?'selected':''}>Быстрее доставка</option></select></label></div>
     <div class="table-wrap"><table><thead><tr><th>ПЛОЩАДКА / ПРОДАВЕЦ</th><th>ИТОГО</th><th>ДОСТАВКА</th><th>ОБНОВЛЕНИЕ</th><th></th></tr></thead><tbody>${offers.map(o=>{
@@ -66,6 +67,7 @@ function renderDetail() {
   drawChart(product);
   $('#delete-product').onclick=()=>deleteProduct(product);
   if($('#add-offer')) $('#add-offer').onclick=()=>offerForm(product);
+  if($('#search-this-product')) $('#search-this-product').onclick=()=>{$('#market-query').value=product.name;startSearch(product.name,product.id);};
   $('#city').onchange=e=>{city=e.target.value;render();};
   $('#market').onchange=e=>{market=e.target.value;renderDetail();};
   $('#sort').onchange=e=>{sort=e.target.value;renderDetail();};
@@ -87,15 +89,73 @@ function drawChart(product) {
 }
 function field(name,label,value='',type='text',extra='') {return `<label class="field">${label}<input name="${name}" type="${type}" value="${esc(value)}" required ${extra}></label>`;}
 function modal(title,fields,action) {$('#modal-title').textContent=title;$('#form-fields').innerHTML=fields;$('#form-error').textContent='';submitAction=action;$('#modal').showModal();}
-function newProduct() {modal('Что будем отслеживать?',field('name','Название, модель и вариант товара','','text','maxlength="200" placeholder="Например, iPhone 16 128 ГБ, чёрный"')+'<p class="form-help">Название создаёт группу для сравнения. После сохранения можно открыть поиск на четырёх площадках и добавить подходящие карточки. Единой поисковой выдачи и автоматического сопоставления пока нет.</p>',async body=>{const result=await api('/api/products',body);selected=result.id;});}
+function newProduct() {modal('Что будем отслеживать?',field('name','Название, модель и вариант товара','','text','maxlength="200" placeholder="Например, Kiwi Ears Orchestra Lite"')+'<p class="form-help">Создам товар и запущу поиск карточек в отдельном браузере. Для поиска сначала установите модуль через setup-search-windows.bat.</p>',async body=>{const result=await api('/api/products',body);selected=result.id;$('#market-query').value=body.name;await startSearch(body.name,result.id);});}
 function observationFields(h) {return '<div class="field-row">'+field('price','Цена товара, ₽',h?h.price/100:'','number','min="0.01" max="100000000" step="0.01"')+field('shipping','Доставка, ₽',h?h.shipping/100:0,'number','min="0" max="100000000" step="0.01"')+'</div><div class="field-row">'+field('days_min','Доставка: минимум дней',h?.days_min??1,'number','min="0" max="365" step="1"')+field('days_max','Максимум дней',h?.days_max??3,'number','min="0" max="365" step="1"')+'</div>'+field('city','Город доставки',city,'text','maxlength="200"')+field('terms','Условия цены / комплектация',h?.terms??'Обычная цена, без подписки','text','maxlength="500"')+'<p class="form-help">Наблюдение будет сохранено с текущим временем. Укажите цену для своей комплектации, способа оплаты и города. Все суммы — в рублях.</p>';}
 function numbers(body) {for(const key of ['days_min','days_max'])body[key]=Number(body[key]);return body;}
 function offerForm(product) {modal('Добавить карточку',field('url','Ссылка на карточку','','url','maxlength="2000" placeholder="https://…"')+field('seller','Продавец','','text','maxlength="200"')+observationFields(),body=>api(`/api/products/${product.id}/offers`,numbers(body)));}
 function observeForm(offer) {modal('Новое наблюдение · '+names[offer.market],'<p class="form-help">'+esc(offer.seller)+'</p>'+observationFields(latest(offer)),body=>api(`/api/offers/${offer.id}/observations`,numbers(body)));}
 function deleteProduct(product) {modal('Удалить товар?',`<p class="form-help">${esc(product.name)}<br>Будут удалены все карточки и история этого товара. Отменить удаление нельзя.</p>`,()=>api('/api/products/'+product.id,undefined,'DELETE'));}
+function renderSearch() {
+  const active=searchJob && !['closed','error'].includes(searchJob.status);
+  $('#run-search').disabled=!!(active||searchStarting);
+  if(!searchJob) return;
+  $('#search-feedback').innerHTML=`<p class="search-message">${esc(searchJob.query||'')} · ${esc(searchJob.message)}</p><div class="market-statuses">${Object.entries(searchJob.markets||{}).map(([key,value])=>`<div class="source-status"><strong><i class="dot ${key}"></i> ${names[key]}</strong><span>${esc(value.message)}${value.count?' · '+value.count+' карточек':''}</span></div>`).join('')}</div>${active?'<div class="search-controls"><button class="row-action" id="collect-search">Прочитать открытые вкладки</button><button class="text-button" id="close-search">Закрыть окно поиска</button></div>':''}`;
+  const results=searchJob.results||[];
+  $('#search-results').innerHTML=results.length?`<p class="search-message">Найдено карточек: ${results.length}. Это результаты площадок, включая возможные аксессуары и похожие модели. Проверьте название и комплектацию.</p><div class="found-grid">${results.map((card,i)=>`<article class="found-card"><div class="market-name"><i class="dot ${card.market}"></i>${names[card.market]}</div><h3>${esc(card.title)}</h3><strong>${esc(card.price_text||'Цена не прочитана')}</strong><p>${esc(card.delivery_text||'Срок и стоимость доставки не прочитаны')}</p><small>${esc(card.seller||'Продавец не указан в выдаче')}</small><div><a target="_blank" rel="noopener noreferrer" href="${esc(card.url)}">Открыть карточку</a><button class="row-action" data-import-result="${i}">Добавить в сравнение</button></div></article>`).join('')}</div>`:'';
+  if($('#collect-search')) $('#collect-search').onclick=()=>searchCommand('collect');
+  if($('#close-search')) $('#close-search').onclick=()=>searchCommand('close');
+  document.querySelectorAll('[data-import-result]').forEach(b=>b.onclick=()=>importResult(results[Number(b.dataset.importResult)]));
+}
+async function startSearch(query,productId) {
+  if(searchStarting) return;
+  searchStarting=true;clearTimeout(searchTimer);$('#run-search').disabled=true;
+  try {
+    const result=await api('/api/search',{query});
+    searchProductId=productId;
+    searchJob={id:result.id,query,status:'starting',message:'Открываю браузер поиска…',markets:{},results:[]};
+    renderSearch();await pollSearch();
+  } catch(e) {
+    $('#search-feedback').textContent=e.message;
+    if(searchJob && !['closed','error'].includes(searchJob.status)) searchTimer=setTimeout(pollSearch,2000);
+  } finally {searchStarting=false;$('#run-search').disabled=!!(searchJob&&!['closed','error'].includes(searchJob.status));}
+}
+async function pollSearch() {
+  if(!searchJob?.id) return;
+  const jobId=searchJob.id;
+  try {
+    const response=await fetch('/api/search/'+encodeURIComponent(jobId));
+    if(!response.ok) throw new Error('Поиск недоступен. Перезагрузите страницу и запустите заново.');
+    const data=await response.json();
+    if(searchJob?.id!==jobId) return;
+    if(JSON.stringify(searchJob)!==JSON.stringify(data)){searchJob=data;renderSearch();}
+    if(!['closed','error'].includes(data.status)) searchTimer=setTimeout(pollSearch,2500);
+  } catch(e) {$('#search-feedback').textContent=e.message;$('#run-search').disabled=false;}
+}
+async function searchCommand(action) {
+  try {await api('/api/search/'+searchJob.id+'/'+action,{});toast(action==='close'?'Закрываю окно поиска…':'Читаю открытые вкладки…');}catch(e){toast(e.message);}
+}
+async function importResult(card) {
+  try {
+    let product=state.products.find(p=>p.id===searchProductId && !p.demo);
+    if(!product){const result=await api('/api/products',{name:searchJob.query});searchProductId=result.id;selected=result.id;await refresh();product=state.products.find(p=>p.id===result.id);}
+    modal('Проверьте карточку перед сохранением',`<p class="form-help">${esc(card.title)}<br>Показанная цена: ${esc(card.price_text||'не прочитана')}. Цены по карте, зачёркнутые цены и условия скидок могут отличаться. Подтвердите нужную цену и доставку для Санкт-Петербурга.</p>`+field('url','Карточка',card.url,'url','maxlength="2000"')+field('seller','Продавец',card.seller||'Не указан в выдаче','text','maxlength="200"')+observationFields(),body=>api(`/api/products/${product.id}/offers`,numbers(body)));
+    const numeric=(card.price_text||'').replace(/\s/g,'').match(/^(\d+(?:[.,]\d{1,2})?)/)?.[1];
+    $('#edit-form [name=price]').value=numeric?numeric.replace(',','.'):'';
+    selected=product.id;
+    // Unknown delivery must be confirmed, never default to free/1–3 days.
+    for(const name of ['shipping','days_min','days_max']) $(`#edit-form [name=${name}]`).value='';
+    $('#edit-form [name=terms]').value='';
+  }catch(e){toast(e.message);}
+}
+$('#market-search-form').onsubmit=async e=>{
+  e.preventDefault();
+  const query=$('#market-query').value.trim();
+  if(!query)return;
+  try {const result=await api('/api/products',{name:query});selected=result.id;await refresh();await startSearch(query,result.id);}catch(error){toast(error.message);}
+};
 $('#new-product').onclick=newProduct;
 $('#close-modal').onclick=()=>$('#modal').close();
 $('#search').oninput=e=>{filter=e.target.value;render();};
 $('#demo').onclick=async()=>{try{await api('/api/demo',{});await refresh();const p=state.products.find(p=>p.demo);selected=p.id;render();}catch(e){toast(e.message);}};
 $('#edit-form').onsubmit=async e=>{e.preventDefault();$('#save-button').disabled=true;$('#form-error').textContent='';try{await submitAction(Object.fromEntries(new FormData(e.target)));$('#modal').close();await refresh();toast('Сохранено');}catch(error){$('#form-error').textContent=error.message;}finally{$('#save-button').disabled=false;}};
-refresh().catch(e=>{$('#detail').innerHTML='<div class="empty"><strong>Не удалось загрузить данные</strong>Проверьте, запущен ли сервер, и перезагрузите страницу.</div>';toast(e.message);});
+refresh().then(async()=>{const response=await fetch('/api/search/current');if(response.ok){searchJob=await response.json();searchProductId=state.products.find(p=>p.name===searchJob.query&&!p.demo)?.id;$('#market-query').value=searchJob.query;renderSearch();if(!['closed','error'].includes(searchJob.status))pollSearch();}}).catch(e=>{$('#detail').innerHTML='<div class="empty"><strong>Не удалось загрузить данные</strong>Проверьте, запущен ли сервер, и перезагрузите страницу.</div>';toast(e.message);});

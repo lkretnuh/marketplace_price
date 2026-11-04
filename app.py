@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from market_search import BrowserSearch, SearchBusy
+
 ROOT = Path(__file__).resolve().parent
 MARKETS = {'ozon': ('ozon.ru',), 'wb': ('wildberries.ru',),
            'yandex': ('market.yandex.ru',), 'ali': ('aliexpress.com', 'aliexpress.ru')}
@@ -105,6 +107,11 @@ class Store:
     def create_product(self, body):
         name = text(body.get('name'), 'Название товара')
         with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            normalized = ' '.join(name.split()).casefold()
+            for row in db.execute('SELECT id,name FROM products WHERE demo=0'):
+                if ' '.join(row['name'].split()).casefold() == normalized:
+                    return row['id']
             return db.execute('INSERT INTO products(name) VALUES(?)', (name,)).lastrowid
 
     def create_offer(self, product_id, body):
@@ -171,7 +178,13 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == '/api/state':
             return self.reply(200, self.server.store.snapshot())
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
+        if path.startswith('/api/search/'):
+            job_id = path.removeprefix('/api/search/')
+            try:
+                return self.reply(200, self.server.search.snapshot(None if job_id == 'current' else job_id))
+            except LookupError:
+                return self.reply(404, {'error': 'Поиск не найден'})
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8'), '/search.css': ('search.css', 'text/css; charset=utf-8')}
         if path in files:
             filename, mime = files[path]
             return self.reply(200, (ROOT / 'web' / filename).read_bytes(), mime)
@@ -201,6 +214,12 @@ class Handler(BaseHTTPRequestHandler):
                 store.delete_product(int(parts[2]))
                 return self.reply(200, {'ok': True})
             if self.command == 'POST':
+                if parts == ['api', 'search']:
+                    query = text(body.get('query'), 'Поисковый запрос')
+                    return self.reply(202, {'id': self.server.search.start(query)})
+                if len(parts) == 4 and parts[:2] == ['api', 'search']:
+                    self.server.search.command(parts[2], parts[3])
+                    return self.reply(202, {'ok': True})
                 if parts == ['api', 'products']:
                     return self.reply(201, {'id': store.create_product(body)})
                 if parts == ['api', 'demo']:
@@ -211,6 +230,10 @@ class Handler(BaseHTTPRequestHandler):
                 if len(parts) == 4 and parts[:2] == ['api', 'offers'] and parts[3] == 'observations':
                     return self.reply(201, {'id': store.add_observation(int(parts[2]), body)})
             self.reply(404, {'error': 'Не найдено'})
+        except SearchBusy as exc:
+            self.reply(409, {'error': str(exc)})
+        except RuntimeError as exc:
+            self.reply(503, {'error': str(exc)})
         except LookupError as exc:
             self.reply(404, {'error': str(exc)})
         except (ValueError, TypeError) as exc:
@@ -225,12 +248,14 @@ def main():
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.store = Store(args.db)
+    server.search = BrowserSearch(Path(args.db).parent / 'browser-profile')
     print(f'Price tracker listening on {args.host}:{args.port}', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        server.search.close()
         server.server_close()
 
 

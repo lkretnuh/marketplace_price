@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light"><title>Ценоскоп — история выгодных решений</title>
-  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/search.css"><script src="/app.js" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -21,8 +21,9 @@
   <main>
     <header><div class="breadcrumbs">Пространство <span>/</span> Мои товары</div><span class="local-status"><i></i> Локальное хранилище</span></header>
     <section class="page-heading"><div><div class="eyebrow">ПОКУПАЙТЕ В НУЖНЫЙ МОМЕНТ</div><h1>Всё о цене. В одном месте.</h1><p>История изменений, все предложения и доставка без сюрпризов.</p></div><button class="primary" id="new-product">＋ Добавить товар</button></section>
-    <div class="notice"><span class="notice-icon">i</span><div><strong>Ручной учёт · RUB</strong><span>Автосбор пока не подключён. Добавляйте наблюдения с карточек; цена и доставка фиксируются для указанного города.</span></div><button id="demo" class="text-button">Посмотреть демо ↗</button></div>
+    <div class="notice"><span class="notice-icon">i</span><div><strong>Поиск через браузер · RUB</strong><span>Карточки читаются из отдельного окна браузера. Цену, вариант товара и доставку подтвердите перед сохранением в историю.</span></div><button id="demo" class="text-button">Посмотреть демо ↗</button></div>
     <section class="stats" aria-label="Сводка"><article><span>Товары в списке</span><strong id="stat-products">0</strong><small>ваш список наблюдения</small></article><article><span>Карточки товаров</span><strong id="stat-offers">0</strong><small>все продавцы, без объединения</small></article><article><span>Наблюдения цены</span><strong id="stat-history">0</strong><small>сохранены в истории</small></article><article class="accent-stat"><span>Площадок в сравнении</span><strong id="stat-markets">0 <em>/ 4</em></strong><small>больше данных — точнее выбор</small></article></section>
+    <section class="browser-search" aria-label="Поиск на маркетплейсах"><h2>Найти товар на маркетплейсах</h2><form id="market-search-form"><label for="market-query">Название или модель</label><div class="query-row"><input id="market-query" required maxlength="200" placeholder="Kiwi Ears Orchestra Lite"><button class="primary" id="run-search">Найти карточки</button></div></form><p class="form-help">Откроется отдельный Chromium с четырьмя вкладками. Выберите свой город на площадках; если появится проверка доступа, пройдите её вручную. Приложение читает карточки открытых страниц, без обхода ограничений.</p><div id="search-feedback" role="status"></div><div id="search-results"></div></section>
     <section class="content-grid">
       <div class="product-panel"><div class="panel-heading"><h2>Мои товары</h2><span id="list-count">0</span></div><label class="search"><span>⌕</span><input id="search" placeholder="Найти в моём списке" aria-label="Поиск по своим товарам"></label><div id="product-list"></div></div>
       <div id="detail" class="detail"></div>

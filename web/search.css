@@ -1,0 +1,17 @@
+.browser-search{background:white;border:1px solid var(--border);border-radius:10px;padding:23px;margin-bottom:25px}
+.browser-search h2{font-size:17px;margin-bottom:17px}
+.browser-search form>label{display:block;font-size:11px;color:#66786c;margin-bottom:8px}
+.query-row{display:flex;gap:12px}.query-row input{flex:1;min-width:0;padding:12px;border:1px solid #dce6df;border-radius:6px;font-size:14px;background:#fafcfb}
+.browser-search .form-help{font-size:11px;line-height:1.8;margin:12px 0 0}
+.search-message{font-size:12px;line-height:1.8;color:#46634f;margin:17px 0 12px;overflow-wrap:anywhere}
+.market-statuses{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.source-status{padding:12px;background:#f5f8f6;border-radius:7px}
+.source-status strong{font-size:11px;display:block}.source-status span{display:block;font-size:10px;line-height:1.7;color:#718478;margin-top:8px}
+.search-controls{display:flex;gap:15px;margin-top:14px}.found-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:650px;overflow:auto;padding:2px}
+.found-card{border:1px solid #dfe9e2;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.found-card h3{font-size:12px;line-height:1.7;margin:0;font-weight:550;overflow-wrap:anywhere}
+.found-card strong{font-size:16px}.found-card p,.found-card small{font-size:10px;color:#7b8e81;line-height:1.6;margin:0}
+.found-card>div:last-child{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-top:8px}
+.found-card a{font-size:10px;color:var(--green)}.discovery>.primary{margin-top:14px}
+@media(max-width:1100px){.market-statuses,.found-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.browser-search{padding:17px}.query-row{flex-direction:column}.market-statuses,.found-grid{grid-template-columns:1fr}.found-grid{max-height:800px}}
