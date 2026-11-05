@@ -53,6 +53,7 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(f'http://127.0.0.1:{server.server_port}')
+                page.locator('#search-mode').select_option('browser')
                 page.locator('#market-query').fill('Kiwi Ears Orchestra Lite')
                 page.get_by_role('button', name='Найти карточки', exact=True).click()
                 page.locator('.found-card').nth(3).wait_for(timeout=30000)
@@ -68,7 +69,7 @@ def main():
                 page.locator('[data-import-result="0"]').click()
                 assert page.locator('[name=price]').input_value() == '19990', (page.locator('[name=price]').input_value(), server.search.snapshot()['results'])
                 assert page.locator('[name=shipping]').input_value() == ''
-                assert page.locator('[name=days_min]').input_value() == ''
+                assert page.locator('[name=days_min]').input_value() == '1'
                 page.locator('[name=shipping]').fill('100')
                 page.locator('[name=days_min]').fill('2')
                 page.locator('[name=days_max]').fill('4')

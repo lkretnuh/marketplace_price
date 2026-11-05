@@ -125,6 +125,22 @@ class HttpTests(unittest.TestCase):
         with self.request(f'/api/products/{pid}', method='DELETE') as r:
             self.assertEqual(r.status, 200)
 
+    def test_extension_ingest_and_rating_round_trip(self):
+        with self.request('/api/search', {'query': 'Kiwi', 'mode': 'extension'}) as response:
+            job_id = json.load(response)['id']
+        with self.request(f'/api/search/{job_id}/results', {'market': 'ozon', 'extracted': {'cards': [
+                dict(url='https://ozon.ru/product/kiwi-1', title='Kiwi', price_text='10 500 ₽',
+                     delivery_text='Доставка завтра бесплатно', product_rating=4.8, seller_rating=4.1)]}}) as response:
+            self.assertEqual(response.status, 200)
+        with self.request(f'/api/search/{job_id}') as response:
+            card = json.load(response)['results'][0]
+        self.assertEqual(card['product_rating'], 4.8)
+        self.assertEqual(card['seller_rating'], 4.1)
+        self.assertEqual(card['days_max'], 1)
+        self.assertEqual(card['shipping_minor'], 0)
+        with self.request(f'/api/search/{job_id}/close', {}) as response:
+            self.assertEqual(response.status, 202)
+
     def test_cross_origin_write_rejected(self):
         with self.assertRaises(HTTPError) as e:
             self.request('/api/products', {'name': 'Не создавать'}, origin='https://untrusted.test')
@@ -141,7 +157,7 @@ class HttpTests(unittest.TestCase):
     def test_search_missing_dependency_is_not_zero_results(self):
         with patch.object(BrowserSearch, 'installed', return_value=False):
             with self.assertRaises(HTTPError) as error:
-                self.request('/api/search', {'query': 'Kiwi Ears Orchestra Lite'})
+                self.request('/api/search', {'query': 'Kiwi Ears Orchestra Lite', 'mode': 'browser'})
             self.assertEqual(error.exception.code, 503)
             self.assertIn('setup-search-windows', json.load(error.exception)['error'])
 

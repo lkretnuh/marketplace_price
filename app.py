@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from market_search import BrowserSearch, SearchBusy
+from card_values import rating
 
 ROOT = Path(__file__).resolve().parent
 MARKETS = {'ozon': ('ozon.ru',), 'wb': ('wildberries.ru',),
@@ -61,7 +62,9 @@ def observation(body):
     low, high = body.get('days_min'), body.get('days_max')
     if type(low) is not int or type(high) is not int or not 0 <= low <= high <= 365:
         raise ValueError('Срок доставки: от 0 до 365 дней, минимум не больше максимума')
-    return price, shipping, low, high, text(body.get('city'), 'Город'), text(body.get('terms', 'Обычная цена'), 'Условия', 500)
+    return (price, shipping, low, high, text(body.get('city'), 'Город'),
+            text(body.get('terms', 'Обычная цена'), 'Условия', 500),
+            rating(body.get('product_rating')), rating(body.get('seller_rating')))
 
 
 class Store:
@@ -83,6 +86,10 @@ class Store:
                     terms TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'manual');
                 CREATE INDEX IF NOT EXISTS obs_offer ON observations(offer_id, at, id);
             ''')
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(observations)')}
+            for name in ('product_rating', 'seller_rating'):
+                if name not in columns:
+                    db.execute(f'ALTER TABLE observations ADD COLUMN {name} REAL')
 
     @contextmanager
     def db(self):
@@ -128,7 +135,7 @@ class Store:
                 offer_id = db.execute('INSERT INTO offers(product_id,market,url,seller) VALUES(?,?,?,?)', (product_id, market, url, seller)).lastrowid
             except sqlite3.IntegrityError:
                 raise ValueError('Эта карточка уже добавлена') from None
-            db.execute('INSERT INTO observations(offer_id,at,price,shipping,days_min,days_max,city,terms) VALUES(?,?,?,?,?,?,?,?)', (offer_id, now(), *values))
+            db.execute('INSERT INTO observations(offer_id,at,price,shipping,days_min,days_max,city,terms,product_rating,seller_rating) VALUES(?,?,?,?,?,?,?,?,?,?)', (offer_id, now(), *values))
             return offer_id
 
     def add_observation(self, offer_id, body):
@@ -139,7 +146,7 @@ class Store:
                 raise LookupError('Карточка не найдена')
             if row['demo']:
                 raise ValueError('Демоданные доступны только для просмотра')
-            return db.execute('INSERT INTO observations(offer_id,at,price,shipping,days_min,days_max,city,terms) VALUES(?,?,?,?,?,?,?,?)', (offer_id, now(), *values)).lastrowid
+            return db.execute('INSERT INTO observations(offer_id,at,price,shipping,days_min,days_max,city,terms,product_rating,seller_rating) VALUES(?,?,?,?,?,?,?,?,?,?)', (offer_id, now(), *values)).lastrowid
 
     def delete_product(self, product_id):
         with self.db() as db:
@@ -184,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, self.server.search.snapshot(None if job_id == 'current' else job_id))
             except LookupError:
                 return self.reply(404, {'error': 'Поиск не найден'})
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8'), '/search.css': ('search.css', 'text/css; charset=utf-8')}
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/comparison.js': ('comparison.js', 'text/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8'), '/search.css': ('search.css', 'text/css; charset=utf-8')}
         if path in files:
             filename, mime = files[path]
             return self.reply(200, (ROOT / 'web' / filename).read_bytes(), mime)
@@ -203,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {'error': 'Запрос с другого сайта запрещён'})
         try:
             size = int(self.headers.get('Content-Length', '0'))
-            if not 0 <= size <= 16384:
+            if not 0 <= size <= 262144:
                 raise ValueError('Слишком большой запрос')
             body = json.loads(self.rfile.read(size)) if size else {}
             if not isinstance(body, dict):
@@ -216,7 +223,10 @@ class Handler(BaseHTTPRequestHandler):
             if self.command == 'POST':
                 if parts == ['api', 'search']:
                     query = text(body.get('query'), 'Поисковый запрос')
-                    return self.reply(202, {'id': self.server.search.start(query)})
+                    return self.reply(202, {'id': self.server.search.start(query, mode=body.get('mode', 'extension'), markets=body.get('markets'))})
+                if len(parts) == 4 and parts[:2] == ['api', 'search'] and parts[3] == 'results':
+                    self.server.search.receive(parts[2], body)
+                    return self.reply(200, {'ok': True})
                 if len(parts) == 4 and parts[:2] == ['api', 'search']:
                     self.server.search.command(parts[2], parts[3])
                     return self.reply(202, {'ok': True})

@@ -1,5 +1,7 @@
 # Поиск через браузер
 
+Основной режим теперь работает через расширение в существующем окне Chrome — [EXTENSION.md](EXTENSION.md). Там Playwright не нужен. Ниже описан запасной режим **«Отдельный Chromium»**: выберите его в поле «Браузер» в Ценоскопе.
+
 ## Установка
 
 На Windows запустите `setup-search-windows.bat`. Он установит Playwright и Chromium для Python 3.14. Затем запускайте `start-windows.bat` и открывайте http://localhost:8000.

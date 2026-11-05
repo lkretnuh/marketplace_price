@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Ценоскоп — сбор из ваших вкладок",
+  "description": "Открывает предложения в текущем окне Chrome и передаёт видимые данные в локальный Ценоскоп.",
+  "version": "0.3.0",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": [
+    "http://localhost/*", "http://127.0.0.1/*",
+    "https://ozon.ru/*", "https://www.ozon.ru/*",
+    "https://wildberries.ru/*", "https://www.wildberries.ru/*",
+    "https://market.yandex.ru/*", "https://www.market.yandex.ru/*",
+    "https://aliexpress.ru/*", "https://www.aliexpress.ru/*",
+    "https://aliexpress.com/*", "https://www.aliexpress.com/*"
+  ],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Ценоскоп", "default_popup": "popup.html"},
+  "content_scripts": [
+    {"matches": ["http://localhost/*", "http://127.0.0.1/*"], "js": ["app-bridge.js"], "run_at": "document_idle"},
+    {"matches": ["https://ozon.ru/*", "https://www.ozon.ru/*", "https://wildberries.ru/*", "https://www.wildberries.ru/*", "https://market.yandex.ru/*", "https://www.market.yandex.ru/*", "https://aliexpress.ru/*", "https://www.aliexpress.ru/*", "https://aliexpress.com/*", "https://www.aliexpress.com/*"], "js": ["extract.js", "market.js"], "run_at": "document_idle"}
+  ]
+}

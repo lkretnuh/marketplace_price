@@ -1,5 +1,6 @@
 .browser-search{background:white;border:1px solid var(--border);border-radius:10px;padding:23px;margin-bottom:25px}
 .browser-search h2{font-size:17px;margin-bottom:17px}
+.extension-help{font-size:11px;line-height:1.9;color:#4c6e58;background:#f1f7f3;border-radius:7px;padding:12px 15px;margin:10px 0 20px}.extension-help summary{cursor:pointer;font-weight:600}.extension-help code{background:white;padding:2px 5px;border-radius:3px}#extension-status{font-size:11px;color:#577662}.browser-search .filter-bar select{max-width:270px}.found-ratings{background:#f2f7f4;padding:8px;border-radius:5px}
 .browser-search form>label{display:block;font-size:11px;color:#66786c;margin-bottom:8px}
 .query-row{display:flex;gap:12px}.query-row input{flex:1;min-width:0;padding:12px;border:1px solid #dce6df;border-radius:6px;font-size:14px;background:#fafcfb}
 .browser-search .form-help{font-size:11px;line-height:1.8;margin:12px 0 0}
